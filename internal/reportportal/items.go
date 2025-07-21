@@ -87,6 +87,22 @@ func (lr *TestItemResources) toolListTestItemsByFilter() (tool mcp.Tool, handler
 				"Test items with start time to timestamp (GMT timezone(UTC+00:00), RFC3339 format or Unix epoch)",
 			),
 		),
+		mcp.WithString("filter.cnt.issueComment",
+			mcp.Description("Items defect comment should contains this substring"),
+		),
+		mcp.WithBoolean("filter.eq.ignoreAnalyzer",
+			mcp.Description("Items ignored in AA analysis"),
+		),
+		mcp.WithString("filter.has.ticketId",
+			mcp.Description("Items linked Bug tracking system ticket/issue id"),
+		),
+		mcp.WithString("filter.any.patternName",
+			mcp.Description("Items pattern name that test name matches in Pattern-Analysis"),
+		),
+		// from Open API spec
+		mcp.WithBoolean("filter.eq.autoAnalyzed",
+			mcp.Description("Items analysed by RP (AA)"),
+		),
 	}...)
 
 	return mcp.NewTool(
@@ -113,12 +129,18 @@ func (lr *TestItemResources) toolListTestItemsByFilter() (tool mcp.Tool, handler
 			filterStatus := request.GetString("filter.in.status", "")
 			filterHasRetries := request.GetBool("filter.eq.hasRetries", false)
 			filterParentId := request.GetString("filter.eq.parentId", "")
+			filterIssueComment := request.GetString("filter.cnt.issueComment", "")
+			filterAutoAnalyzed := request.GetBool("filter.eq.autoAnalyzed", false)
+			filterIgnoreAnalyzer := request.GetBool("filter.in.ignoreAnalyzer", false)
+			filterTicketId := request.GetString("filter.has.ticketId", "")
+			filterPatternName := request.GetString("filter.any.patternName", "")
 
 			urlValues := url.Values{
-				"providerType":          {defaultProviderType},
-				"filter.eq.hasStats":    {defaultFilterEqHasStats},
-				"filter.eq.hasChildren": {defaultFilterEqHasChildren},
-				"filter.in.type":        {defaultFilterInType},
+				"providerType":             {defaultProviderType},
+				"filter.eq.hasStats":       {defaultFilterEqHasStats},
+				"filter.eq.hasChildren":    {defaultFilterEqHasChildren},
+				"filter.in.type":           {defaultFilterInType},
+				"filter.in.ignoreAnalyzer": {strconv.FormatBool(filterIgnoreAnalyzer)},
 			}
 			urlValues.Add("launchId", strconv.Itoa(launchId))
 
@@ -141,6 +163,15 @@ func (lr *TestItemResources) toolListTestItemsByFilter() (tool mcp.Tool, handler
 				}
 				urlValues.Add("filter.eq.parentId", filterParentId)
 			}
+			if filterIssueComment != "" {
+				urlValues.Add("filter.cnt.issueComment", filterIssueComment)
+			}
+			if filterTicketId != "" {
+				urlValues.Add("filter.has.ticketId", filterTicketId)
+			}
+			if filterPatternName != "" {
+				urlValues.Add("filter.any.patternName", filterPatternName)
+			}
 
 			filterStartTime, err := processStartTimeFilter(filterStartTimeFrom, filterStartTimeTo)
 			if err != nil {
@@ -157,7 +188,8 @@ func (lr *TestItemResources) toolListTestItemsByFilter() (tool mcp.Tool, handler
 			}
 			// Build the API request with filters
 			apiRequest := lr.client.TestItemAPI.GetTestItemsV2(ctxWithParams, project).
-				Params(requiredUrlParams)
+				Params(requiredUrlParams).
+				FilterEqAutoAnalyzed(filterAutoAnalyzed)
 
 			// Apply pagination parameters
 			apiRequest = applyPaginationOptions(apiRequest, request)
